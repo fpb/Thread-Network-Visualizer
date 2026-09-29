@@ -99,6 +99,20 @@ function log(msg) {
     win.scrollTop = win.scrollHeight;
 }
 
+// Recursively converts object keys to camelCase (lowercases the first character),
+// so PascalCase responses (e.g. "ExtAddress") are handled like camelCase ones.
+function normalizeKeys(value) {
+    if (Array.isArray(value)) return value.map(normalizeKeys);
+    if (value && typeof value === 'object') {
+        const out = {};
+        for (const [k, v] of Object.entries(value)) {
+            out[k.charAt(0).toLowerCase() + k.slice(1)] = normalizeKeys(v);
+        }
+        return out;
+    }
+    return value;
+}
+
 // --- UPDATED DISCOVERY ENGINE ---
 async function startDiscovery() {
     // Set API URL from input if provided
@@ -129,7 +143,7 @@ async function startDiscovery() {
         });
         if (!selfResp.ok) throw new Error(`HTTP Error: ${selfResp.status}`);
         
-        const selfData = await selfResp.json();
+        const selfData = normalizeKeys(await selfResp.json());
         
         // --- FIX IS HERE: Handle Flat vs Wrapped JSON ---
         // If 'result' exists, use it. Otherwise, use the root object.
@@ -224,7 +238,7 @@ async function processQueue() {
             throw new Error(`Task creation failed (${taskResp.status}): ${errorText}`);
         }
         
-        const taskJson = await taskResp.json();
+        const taskJson = normalizeKeys(await taskResp.json());
         
         // Extract Action ID (not the Result ID yet)
         let actionId;
@@ -244,7 +258,7 @@ async function processQueue() {
             const reportResp = await fetch(`${API_BASE}/api/diagnostics/${resultId}`, {
                 headers: { 'Accept': 'application/vnd.api+json' }
             });
-            const reportJson = await reportResp.json();
+            const reportJson = normalizeKeys(await reportResp.json());
             
             // Extract attributes from report
             // result data usually looks like { data: [ { attributes: ... } ] } or { data: { attributes: ... } }
@@ -273,7 +287,7 @@ async function pollAction(actionId) {
         const statusResp = await fetch(`${API_BASE}/api/actions/${actionId}`, {
             headers: { 'Accept': 'application/vnd.api+json' }
         });
-        const statusJson = await statusResp.json();
+        const statusJson = normalizeKeys(await statusResp.json());
         
         const actionData = Array.isArray(statusJson.data) ? statusJson.data[0] : statusJson.data;
         const status = actionData.attributes.status;
